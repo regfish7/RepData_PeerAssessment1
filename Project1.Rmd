@@ -1,0 +1,112 @@
+---
+title: "Reproducible Data - Project 1"
+author: "R.G."
+date: "5/28/2020"
+output: html_document
+---
+
+In this project, we will analyze data from a personal activity monitoring device. The data consists of the number of steps taken by an anonymous indvidiaul in 5 minute intervals each day for two months (October and November of 2012). 
+
+## Loading and Preprocessing the Data
+
+### Loading 
+First, we will load the data set. 
+```{r loading}
+activity <- read.csv('activity.csv')
+```
+
+### Preprocessing
+First, we take a look at the data to get an idea of how it should be preprocessed. 
+```{r preproces1}
+str(activity)
+```
+We note that the `steps` variable has several missing values and that the `date` variable is saved as a factor variable instead of a datetime variable. 
+First, we need to determine how many of the entries in `steps` are missing. We do this by calculating a percentage
+```{r preprocess2}
+missingvals <- sum(is.na(activity$steps))
+missingvals/length(activity$steps)*100
+```
+We find that about 13% of the step values are missing. This is a signifcant, but somewhat small percentage, so we will ignore it for now. 
+
+To make future calculations easier, the only preprocessing we will do for now is to convert `date` into datetime format.
+
+```{r preprocess3}
+library(lubridate)
+activity$date <- ymd(activity$date)
+```
+
+## Data Analysis
+
+Now that our data has been loaded and processed, we can perform some basic data anlaysis answering the questions posed at the beginning of each section below. 
+
+### What is the Mean Total Number of Steps Taken Per Day? 
+
+Before we can answer the stated question, we must first calculate the total number of steps taken each day. 
+
+```{r mean1}
+library(dplyr)
+total_steps <- activity %>% group_by(date) %>% summarise(steps = sum(steps, na.rm = TRUE))
+```
+
+Now, we will represent this data as a histogram to get a visual idea of how the total number of steps each day is distributed and where the mean number of steps might lie.
+
+```{r mean2}
+hist(total_steps$steps, col = "red", breaks = 20, xlab = 'Total Steps Per Day', main = "Histogram of Total Steps Per Day")
+rug(total_steps$steps) #shows all the data points underneath
+```
+
+We see that there is a large spike around 0 steps per day and another large spike around 10,000 steps per day. This is the default daily goal for many acitivity tracking devices, so it makes sense that this would be a common occurence. Beacuse of the peak around 0, we expect the mean number of total daily steps to be less than the median. Otherwise, we see the data is fairly normally distributed. 
+
+Finally, we calculate the mean and the median.
+
+```{r mean3}
+mean_steps <- mean(total_steps$steps)
+median_steps <- median(total_steps$steps)
+```
+
+We find that the mean daily number of steps is `r mean_steps` and the median is `r median_steps`. 
+
+### What is the Average Daily Activity Pattern? 
+
+To answer this question, we will create a time series plot of the 5-minute intervals (on the x-axis) and the average number of steps taken, averaged across all days (y-axis). 
+
+```{r quickcalc, echo = FALSE}
+#This is just a quick calculation of the number of 5-minute intervals in the day
+num_intervals <- 24*60/5
+```
+
+First, we must calculate the average across all days for each five-minute interval. Note that there are `r num_intervals` five-minute intervals in each day, and 61 days in our dataset. We use this information to calculate the averages for each five-minute interval.
+
+```{r average1}
+#averages = data.frame(Interval = double(), Average = double())
+intervals <- 1:288
+averages <- vector(length = length(intervals))
+for(i in 1:length(intervals)){
+    int_steps <- vector(length = 61)
+    for(k in 1:length(int_steps)){
+        int_steps[k]<- activity$steps[i+(length(intervals)-1)*k]
+    }
+    averages[i] <- mean(int_steps, na.rm=TRUE)
+}
+```
+
+Now that we have the averages, we can plot them 
+```{r average2}
+plot(intervals,averages, type = "l",col='blue', xlab ='5-minute interval', ylab = 'Average Number of Steps', main = 'Average Number of Steps for each 5-Minute Interval') 
+```
+
+### Imputing Missing Values
+
+Recall that we previously computed the nubmer of missing vales in the dataset, which we found to be `r missingvals` intervals without information about the number of steps taken. 
+
+We will now impute these values with the mean for that five-minute interval taken over all days, as calculated in the previous section. 
+
+```{r imputing1}
+#plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+### Are There Differences in Activity Patterns Between Weekdays and Weekends? 
+
+To answer this question, we must first differentiate the data between weekends and weekdays; we will create a new factor variable do this. 

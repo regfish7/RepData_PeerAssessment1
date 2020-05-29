@@ -1,7 +1,5 @@
 ---
 title: "Reproducible Data - Project 1"
-author: "R.G."
-date: "5/28/2020"
 output: html_document
 ---
 
@@ -51,7 +49,7 @@ total_steps <- activity %>% group_by(date) %>% summarise(steps = sum(steps, na.r
 Now, we will represent this data as a histogram to get a visual idea of how the total number of steps each day is distributed and where the mean number of steps might lie.
 
 ```{r mean2}
-hist(total_steps$steps, col = "red", breaks = 20, xlab = 'Total Steps Per Day', main = "Histogram of Total Steps Per Day")
+hist(total_steps$steps, col = "red", breaks = 15, xlab = 'Total Steps Per Day', main = "Histogram of Total Steps Per Day")
 rug(total_steps$steps) #shows all the data points underneath
 ```
 
@@ -64,7 +62,7 @@ mean_steps <- mean(total_steps$steps)
 median_steps <- median(total_steps$steps)
 ```
 
-We find that the mean daily number of steps is `r mean_steps` and the median is `r median_steps`. 
+We find that the **mean daily number of steps is `r mean_steps`** and the **median is `r median_steps`**. 
 
 ### What is the Average Daily Activity Pattern? 
 
@@ -78,35 +76,77 @@ num_intervals <- 24*60/5
 First, we must calculate the average across all days for each five-minute interval. Note that there are `r num_intervals` five-minute intervals in each day, and 61 days in our dataset. We use this information to calculate the averages for each five-minute interval.
 
 ```{r average1}
-#averages = data.frame(Interval = double(), Average = double())
-intervals <- 1:288
-averages <- vector(length = length(intervals))
-for(i in 1:length(intervals)){
-    int_steps <- vector(length = 61)
-    for(k in 1:length(int_steps)){
-        int_steps[k]<- activity$steps[i+(length(intervals)-1)*k]
-    }
-    averages[i] <- mean(int_steps, na.rm=TRUE)
-}
+averages <- activity %>% group_by(interval) %>% summarise(steps = mean(steps, na.rm = TRUE))
 ```
 
-Now that we have the averages, we can plot them 
+Now that we have the averages, we can plot them:
 ```{r average2}
-plot(intervals,averages, type = "l",col='blue', xlab ='5-minute interval', ylab = 'Average Number of Steps', main = 'Average Number of Steps for each 5-Minute Interval') 
+plot(averages$interval, averages$steps, type = "l",col='blue', xlab ='5-minute interval', ylab = 'Average Number of Steps', main = 'Average Number of Steps for each 5-Minute Interval') 
 ```
+
+Finally, we want to find the 5-minute interval that, on average, contains the maximum number of steps. By looking at the plot, this appears to be around the 5-minute interval that starts at the 900th minute. We calculate the exact interval by using the `which.max` function.
+
+```{r average3}
+#Calculate the location of the maximum and the maximum
+max_loc <- which.max(averages$steps)
+maximum <- averages$steps[max_loc]
+
+#Find the time at which the maximum occured
+max_hour <- floor(averages$interval[max_loc]/60)
+max_min <- (averages$interval[max_loc]%%60)
+```
+
+So we find that **the `r max_loc`th interval is the one with the highest average number of steps** (i.e. the variable `interval` is equal to `r averages$interval[max_loc]`), specifically with `r maximum` steps on average during that interval. We find that this is the interval that starts at `r max_hour`:`r max_min`. 
 
 ### Imputing Missing Values
 
-Recall that we previously computed the nubmer of missing vales in the dataset, which we found to be `r missingvals` intervals without information about the number of steps taken. 
+Recall that we previously computed the number of missing values in the dataset, which we found to be `r missingvals` time intervals without information about the number of steps taken. 
 
-We will now impute these values with the mean for that five-minute interval taken over all days, as calculated in the previous section. 
+We will now impute these values with the mean for that five-minute interval taken over all days, as calculated in the previous section and create a new dataset called `new_activity`.
 
 ```{r imputing1}
-#plot(pressure)
+new_activity <- activity
+for(i in 1:length(new_activity$steps)){
+    if(is.na(new_activity$steps[i])){
+        new_activity$steps[i] <- averages$steps[averages$interval==new_activity$interval[i]]
+    }
+}
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Now that all the missing values are replaced with imputed values, we can get a histogram of the total number of steps each day, as before. This will also allow us to determine if our imputation scheme was reasonable by comparing it to the shape of the original histogram. 
+
+```{r imputing2}
+total_steps2 <- new_activity %>% group_by(date) %>% summarise(steps = sum(steps))
+hist(total_steps2$steps, col = "red", breaks = 15, xlab = 'Total Steps Per Day', main = "Total Steps Per Day With Imputed Data")
+rug(total_steps2$steps) #shows all the data points underneath
+```
+
+As before, we see the same spike in activity around 10,000 steps per day but no spike around 0. This gives us insight that there were several days without data and so their totals were recorded as 0. We see that the histogram with the imputed values still has the shape of normally distributed data and so we conclude that our imputation scheme was reasonable, as, overall, the shape of the data did not change other than the anomalous spike caused by the missing data.  
 
 ### Are There Differences in Activity Patterns Between Weekdays and Weekends? 
 
 To answer this question, we must first differentiate the data between weekends and weekdays; we will create a new factor variable do this. 
+
+```{r weekdays1}
+new_activity$dayType <- factor(weekdays(activity$date),levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"), labels = c("weekday", "weekday", "weekday","weekday","weekday","weekend", "weekend"))    
+```
+
+Now, we will find the average number of steps taken over each 5-minute interval, grouping by weekday or weekend. 
+```{r weekdays2}
+day_avgs <- new_activity %>% group_by(dayType,interval) %>% summarise(steps = mean(steps))
+```
+Now we can create a plot comparing the average number of steps taken over each 5-minute interval for weekdays versus weekends. 
+
+```{r weekdays3}
+library(ggplot2)
+#Setup ggplot with data frame
+g <- ggplot(day_avgs, aes(interval, steps, color = dayType))
+
+#Add layers
+g + geom_line() + #add lines
+    facet_grid(dayType~.) + #make panels
+    labs(x = '5-Minute Interval') + #add labels
+    labs(y = "Average Number of Steps") +
+    labs(title = "Average Number of Steps Per 5-Min. Interval for Weekdays vs Weekends")+
+    theme(legend.title = element_blank())
+```
